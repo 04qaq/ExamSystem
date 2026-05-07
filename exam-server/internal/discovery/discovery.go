@@ -1,9 +1,11 @@
 package discovery
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -11,6 +13,8 @@ import (
 const (
 	DiscoveryPort = 43210
 	reqMsg        = "EXAM_SERVER_DISCOVERY"
+	// 兼容旧客户端：EXAM|<API端口>
+	respPrefix = "EXAM|"
 )
 
 var stopChan chan struct{}
@@ -54,7 +58,8 @@ func startUDP(serverPort string) {
 
 			msg := strings.TrimSpace(string(buf[:n]))
 			if msg == reqMsg {
-				conn.WriteToUDP([]byte(serverPort), remoteAddr)
+				payload := discoveryPayload(serverPort)
+				conn.WriteToUDP(payload, remoteAddr)
 				log.Printf("[发现服务-UDP] 响应客户端 %s", remoteAddr.String())
 			}
 		}
@@ -89,7 +94,7 @@ func startTCP(serverPort string) {
 			if err != nil {
 				continue
 			}
-			conn.Write([]byte(serverPort))
+			_, _ = conn.Write(discoveryPayload(serverPort))
 			conn.Close()
 		}
 	}
@@ -100,4 +105,22 @@ func Stop() {
 	if stopChan != nil {
 		close(stopChan)
 	}
+}
+
+func discoveryPayload(serverPort string) []byte {
+	p := strings.TrimSpace(serverPort)
+	portNum, err := strconv.Atoi(p)
+	if err != nil || portNum <= 0 || portNum >= 65536 {
+		portNum = 8080
+	}
+	j, err := json.Marshal(map[string]any{
+		"v":    1,
+		"svc":  "exam-server",
+		"http": portNum,
+		"tls":  false,
+	})
+	if err != nil {
+		return []byte(respPrefix + p)
+	}
+	return j
 }

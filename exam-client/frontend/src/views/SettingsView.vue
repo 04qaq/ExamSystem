@@ -11,8 +11,8 @@ import {
 } from 'naive-ui'
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import axios from 'axios'
 import { useSettingsStore } from '@/stores/settings'
+import { probeExamServerBase } from '@/utils/serverDiscovery'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,25 +21,34 @@ const settings = useSettingsStore()
 
 const draft = ref(settings.apiBaseUrl || settings.effectiveBaseUrl)
 const testing = ref(false)
+const discovering = ref(false)
 
 async function testConnection() {
   testing.value = true
   const base = draft.value.trim().replace(/\/+$/, '') || settings.effectiveBaseUrl
   try {
-    await axios.post(
-      `${base}/api/auth/login`,
-      {},
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 8000,
-        validateStatus: () => true,
-      }
-    )
-    message.success('已连通服务端（返回了 API 响应，说明地址正确）')
+    const ok = await probeExamServerBase(base)
+    if (ok) message.success('已连通 exam-server')
+    else message.error('无法识别为 exam-server，请核对地址与端口')
   } catch {
     message.error('无法连接，请检查地址、端口与防火墙')
   } finally {
     testing.value = false
+  }
+}
+
+async function autoDiscover() {
+  discovering.value = true
+  try {
+    const url = await settings.discoverNow()
+    if (url) {
+      draft.value = url
+      message.success(`已找到服务端：${url}`)
+    } else {
+      message.warning(settings.lastDiscoveryMessage || '未发现局域网内的 exam-server')
+    }
+  } finally {
+    discovering.value = false
   }
 }
 
@@ -54,16 +63,19 @@ function save() {
     <div v-if="route.name === 'setup'">
       <n-button quaternary size="small" @click="router.push('/login')">← 返回登录</n-button>
     </div>
-    <n-alert title="前后端分离" type="info">
-      本客户端仅通过 HTTP 调用 exam-server，可部署在不同机器。默认回落地址来自环境变量
-      <code>VITE_API_BASE_URL</code>，未设置时为 <code>http://127.0.0.1:8080</code>。
+    <n-alert title="连接说明" type="info">
+      首次启动会自动探测<strong>本机</strong>（127.0.0.1 / localhost）、<strong>局域网</strong>与
+      <strong>Wi‑Fi</strong>网段内的 exam-server（通过公开接口 <code>/api/ping</code>）。若设置了环境变量
+      <code>VITE_API_BASE_URL</code>，则以环境变量为准且跳过自动发现。服务端需放行 TCP
+      <code>8080</code>（或您映射的端口）；同一热点/路由器下的设备通常可直接被发现。
     </n-alert>
     <n-card title="API 根地址">
       <n-form label-placement="top">
         <n-form-item label="例如 http://192.168.1.10:8080（不要以 / 结尾）">
-          <n-input v-model:value="draft" placeholder="http://主机:端口" />
+          <n-input v-model:value="draft" placeholder="留空则按自动发现或默认本机 8080" />
         </n-form-item>
         <n-space>
+          <n-button @click="autoDiscover" :loading="discovering || settings.isDiscovering">自动查找服务端</n-button>
           <n-button @click="testConnection" :loading="testing">测试连接</n-button>
           <n-button type="primary" @click="save">保存</n-button>
         </n-space>

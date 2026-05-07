@@ -10,7 +10,7 @@ import {
   NSpace,
   useMessage,
 } from 'naive-ui'
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { loginApi, registerApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
@@ -23,6 +23,8 @@ const auth = useAuthStore()
 const settings = useSettingsStore()
 
 const loading = ref(false)
+
+const discovering = computed(() => settings.isDiscovering)
 
 const loginForm = reactive({
   username: '',
@@ -76,12 +78,15 @@ async function onRegister() {
   <div class="login-page">
     <n-card class="login-card" title="在线考试系统" size="large">
       <p class="hint">
-        当前 API 地址：<strong>{{ settings.effectiveBaseUrl }}</strong>
-        <span class="sub-hint">
-          未登录也可
-          <router-link class="link" to="/setup">课前配置 API</router-link>
-          ；登录后在侧边栏「连接与服务端」亦可修改。
-        </span>
+        <template v-if="discovering">正在自动查找本机或局域网内的 exam-server…</template>
+        <template v-else>
+          当前 API 地址：<strong>{{ settings.effectiveBaseUrl }}</strong>
+          <span class="sub-hint">
+            默认会自动探测同一台电脑、局域网或 Wi‑Fi 下的服务端；也可
+            <router-link class="link" to="/setup">手动指定</router-link>
+            。
+          </span>
+        </template>
       </p>
       <n-tabs type="line" animated>
         <n-tab-pane name="login" tab="登录">
@@ -133,7 +138,7 @@ async function onRegister() {
       </n-tabs>
       <template #footer>
         <n-space justify="center">
-          <span class="muted">客户端与 exam-server 分离部署，仅需配置正确的 API 根地址。</span>
+          <span class="muted">exam-server 需与本客户端网络互通；防火墙请放行 HTTP 端口（默认 8080）。</span>
         </n-space>
       </template>
     </n-card>

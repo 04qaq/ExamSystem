@@ -2,6 +2,7 @@ package router
 
 import (
 	"exam-server/internal/controller"
+	"exam-server/internal/dto"
 	"exam-server/internal/middleware"
 	"exam-server/internal/model"
 
@@ -22,6 +23,12 @@ func Setup() *gin.Engine {
 	// 公开路由
 	public := r.Group("/api")
 	{
+		// 客户端自动发现：无需登录，用于探测本网内的 exam-server
+		public.GET("/ping", func(c *gin.Context) {
+			c.JSON(200, dto.Success(gin.H{
+				"service": "exam-server",
+			}))
+		})
 		public.POST("/auth/register", authCtrl.Register)
 		public.POST("/auth/login", authCtrl.Login)
 	}
