@@ -1,0 +1,21 @@
+server:
+  port: 8080
+  mode: debug  # debug | release
+
+database:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: "20040423"
+  dbname: exam_system
+  max_open_conns: 100
+  max_idle_conns: 10
+
+cache:
+  flush_interval: 30   # 答案缓存刷入 MySQL 的间隔（秒）
+  max_entries: 100000   # 最大缓存条目数
+
+jwt:
+  secret: "exam-system-secret-change-in-production"
+  access_expire: 24h
+  refresh_expire: 168h

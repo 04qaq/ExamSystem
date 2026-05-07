@@ -1,0 +1,39 @@
+# https://taskfile.dev
+# wails3 build 在 Windows 上会执行 task「windows:build」
+
+version: '3'
+
+vars:
+  APP_NAME: ExamSystem
+  BIN_DIR: bin
+
+tasks:
+  windows:build:
+    summary: 构建 Windows 可执行文件（需已同步 embed/dist）
+    cmds:
+      - powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '{{.BIN_DIR}}' | Out-Null"
+      - go build -buildvcs=false -o {{.BIN_DIR}}/{{.APP_NAME}}.exe .
+    env:
+      GOOS: windows
+      CGO_ENABLED: '0'
+      GOARCH: '{{.ARCH | default "amd64"}}'
+
+  darwin:build:
+    summary: 构建 macOS 可执行文件
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -buildvcs=false -o {{.BIN_DIR}}/{{.APP_NAME}} .
+    env:
+      GOOS: darwin
+      CGO_ENABLED: '1'
+      GOARCH: '{{.ARCH | default "amd64"}}'
+
+  linux:build:
+    summary: 构建 Linux 可执行文件
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -buildvcs=false -o {{.BIN_DIR}}/{{.APP_NAME}} .
+    env:
+      GOOS: linux
+      CGO_ENABLED: '1'
+      GOARCH: '{{.ARCH | default "amd64"}}'

@@ -1,0 +1,6 @@
+bin/
+*.exe
+*.syso
+
+# Vite 打包后的静态资源（由 scripts/sync-frontend.ps1 写入）
+embed/dist/assets/
