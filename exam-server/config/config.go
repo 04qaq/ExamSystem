@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -43,6 +44,8 @@ var AppConfig *Config
 
 func LoadConfig(configPath string) error {
 	viper.SetConfigFile(configPath)
+	// 支持以环境变量覆盖嵌套配置，例如 DATABASE_HOST、JWT_SECRET（Docker / K8s）
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {

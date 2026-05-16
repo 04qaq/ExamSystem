@@ -346,15 +346,18 @@ onMounted(load)
       </n-form-item>
       <n-form-item
         v-if="formModel.type === 1 || formModel.type === 2 || formModel.type === 3"
-        label="选项（每行一项；后端按换行入库，勿提交 JSON 数组整串）"
+        label="选项"
       >
-        <n-input v-model:value="formModel.optionsLines" type="textarea" :rows="5" placeholder="选项 A&#10;选项 B" />
+        <n-input v-model:value="formModel.optionsLines" type="textarea" :rows="5" placeholder="每行一个选项，例如：&#10;A. 选项一&#10;B. 选项二" />
+        <p class="field-tip">单选、多选、判断题会按行识别选项；判断题不填时默认使用“正确 / 错误”。</p>
       </n-form-item>
-      <n-form-item v-else label="选项（填空/简答可留空；多行或粘贴 JSON 数组会自动规整）">
+      <n-form-item v-else label="选项">
         <n-input v-model:value="formModel.options" type="textarea" :rows="2" placeholder="可选" />
+        <p class="field-tip">填空题和简答题通常不用填写选项。</p>
       </n-form-item>
       <n-form-item label="答案">
         <n-input v-model:value="formModel.answer" placeholder="单选/判断：与选项文案一致；多选：逗号分隔" />
+        <p class="field-tip">客观题答案需要与选项文字一致；多选题用英文逗号分隔，如 A,C。</p>
       </n-form-item>
       <n-form-item label="分值">
         <n-input-number v-model:value="formModel.score" :min="1" style="width: 160px" />
@@ -390,6 +393,12 @@ onMounted(load)
   font-size: 13px;
   color: #64748b;
   margin: 0 0 12px;
+  line-height: 1.5;
+}
+.field-tip {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
   line-height: 1.5;
 }
 .mono :deep(textarea) {

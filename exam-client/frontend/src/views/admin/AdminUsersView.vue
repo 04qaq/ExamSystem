@@ -26,12 +26,22 @@ const page = ref(1)
 const pageSize = ref(10)
 
 const showCreate = ref(false)
+const showEdit = ref(false)
 const creating = ref(false)
+const updating = ref(false)
 const createForm = reactive({
   username: '',
   password: '',
   role: 3,
   real_name: '',
+})
+const editForm = reactive({
+  id: 0,
+  username: '',
+  password: '',
+  role: 3,
+  real_name: '',
+  status: 1,
 })
 
 const roleOpts = [
@@ -69,6 +79,7 @@ const columns: DataTableColumns<UserRow> = [
     render(row) {
       return h(NSpace, null, {
         default: () => [
+          h(NButton, { size: 'tiny', onClick: () => openEdit(row) }, { default: () => '编辑' }),
           h(
             NButton,
             {
@@ -96,6 +107,16 @@ async function load() {
   }
 }
 
+function openEdit(row: UserRow) {
+  editForm.id = row.id
+  editForm.username = row.username
+  editForm.password = ''
+  editForm.role = row.role
+  editForm.real_name = row.real_name || ''
+  editForm.status = row.status
+  showEdit.value = true
+}
+
 async function toggleStatus(row: UserRow) {
   try {
     await adminUpdateUser(row.id, { status: row.status === 1 ? 0 : 1 })
@@ -103,6 +124,25 @@ async function toggleStatus(row: UserRow) {
     await load()
   } catch (e) {
     message.error(e instanceof Error ? e.message : '操作失败')
+  }
+}
+
+async function updateUser() {
+  updating.value = true
+  try {
+    await adminUpdateUser(editForm.id, {
+      real_name: editForm.real_name.trim(),
+      role: editForm.role,
+      status: editForm.status,
+      password: editForm.password || undefined,
+    })
+    message.success('用户已更新')
+    showEdit.value = false
+    await load()
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '更新失败')
+  } finally {
+    updating.value = false
   }
 }
 
@@ -166,6 +206,38 @@ onMounted(load)
         <n-input v-model:value="createForm.real_name" />
       </n-form-item>
       <n-button type="primary" block :loading="creating" @click="createUser">创建</n-button>
+    </n-form>
+  </n-modal>
+
+  <n-modal v-model:show="showEdit" preset="card" :title="`编辑用户：${editForm.username}`" style="width: 420px">
+    <n-form label-placement="top">
+      <n-form-item label="用户名">
+        <n-input :value="editForm.username" disabled />
+      </n-form-item>
+      <n-form-item label="姓名">
+        <n-input v-model:value="editForm.real_name" placeholder="可留空" />
+      </n-form-item>
+      <n-form-item label="角色" required>
+        <n-select v-model:value="editForm.role" :options="roleOpts" />
+      </n-form-item>
+      <n-form-item label="状态" required>
+        <n-select
+          v-model:value="editForm.status"
+          :options="[
+            { label: '正常', value: 1 },
+            { label: '禁用', value: 0 },
+          ]"
+        />
+      </n-form-item>
+      <n-form-item label="重置密码（可选）">
+        <n-input
+          v-model:value="editForm.password"
+          type="password"
+          show-password-on="click"
+          placeholder="不填写则不修改密码"
+        />
+      </n-form-item>
+      <n-button type="primary" block :loading="updating" @click="updateUser">保存修改</n-button>
     </n-form>
   </n-modal>
 </template>

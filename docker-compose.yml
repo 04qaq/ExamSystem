@@ -1,0 +1,65 @@
+# 完整栈：MySQL + exam-server + Nginx（Vue 静态资源 + /api 反代）
+# 用法：复制 .env.docker.example 为 .env 并按需修改后执行
+#   docker compose --env-file .env up -d --build
+# 浏览器访问 http://localhost:${WEB_PORT:-8080}/
+
+services:
+  mysql:
+    image: mysql:8.0
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-examroot}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-exam_system}
+      MYSQL_USER: ${MYSQL_USER:-exam}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-exampass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  exam-server:
+    build:
+      context: ./exam-server
+      dockerfile: Dockerfile
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8080"
+      SERVER_MODE: ${SERVER_MODE:-release}
+      DATABASE_HOST: mysql
+      DATABASE_PORT: "3306"
+      DATABASE_USER: ${MYSQL_USER:-exam}
+      DATABASE_PASSWORD: ${MYSQL_PASSWORD:-exampass}
+      DATABASE_DBNAME: ${MYSQL_DATABASE:-exam_system}
+      DATABASE_MAX_OPEN_CONNS: "100"
+      DATABASE_MAX_IDLE_CONNS: "10"
+      CACHE_FLUSH_INTERVAL: "30"
+      CACHE_MAX_ENTRIES: "100000"
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ACCESS_EXPIRE: ${JWT_ACCESS_EXPIRE:-24h}
+      JWT_REFRESH_EXPIRE: ${JWT_REFRESH_EXPIRE:-168h}
+    expose:
+      - "8080/tcp"
+      - "43210/tcp"
+      - "43210/udp"
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+    depends_on:
+      - exam-server
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  mysql_data:

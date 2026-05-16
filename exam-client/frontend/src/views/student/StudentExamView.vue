@@ -38,21 +38,37 @@ const multi = ref<Record<number, string[]>>({})
 
 const tabSwitchCount = ref(0)
 const submitted = ref(false)
+const saveStatus = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+const lastSavedAt = ref('')
 
 /** 与后端 exam 记录状态一致：进行中才可回填答案 */
 const EXAM_IN_PROGRESS = 1
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let tickTimer: ReturnType<typeof setInterval> | undefined
+const dirtyQuestionIds = new Set<number>()
 
 function scheduleSave(qid: number) {
+  dirtyQuestionIds.add(qid)
+  saveStatus.value = 'saving'
   clearTimeout(saveTimer)
-  saveTimer = setTimeout(async () => {
-    try {
-      await saveAnswer(recordId.value, qid, answers.value[qid] ?? '')
-    } catch {
-      /* 静默重试由用户刷新 */
-    }
+  saveTimer = setTimeout(() => {
+    void flushPendingAnswers()
   }, 700)
+}
+
+async function flushPendingAnswers() {
+  if (!recordId.value || dirtyQuestionIds.size === 0) return
+  const ids = [...dirtyQuestionIds]
+  dirtyQuestionIds.clear()
+  saveStatus.value = 'saving'
+  try {
+    await Promise.all(ids.map((qid) => saveAnswer(recordId.value, qid, answers.value[qid] ?? '')))
+    saveStatus.value = 'saved'
+    lastSavedAt.value = new Date().toLocaleTimeString()
+  } catch {
+    ids.forEach((qid) => dirtyQuestionIds.add(qid))
+    saveStatus.value = 'error'
+  }
 }
 
 function setSingle(q: ExamQuestionItem, val: string) {
@@ -140,6 +156,31 @@ function formatRemain(sec: number) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+function isAnswered(q: ExamQuestionItem) {
+  return !!(answers.value[q.question_id] ?? '').trim()
+}
+
+const answeredCount = computed(() => questions.value.filter(isAnswered).length)
+const unansweredCount = computed(() => Math.max(0, questions.value.length - answeredCount.value))
+
+const saveStatusText = computed(() => {
+  if (saveStatus.value === 'saving') return '保存中'
+  if (saveStatus.value === 'saved') return lastSavedAt.value ? `已保存 ${lastSavedAt.value}` : '已保存'
+  if (saveStatus.value === 'error') return '保存失败，请检查网络'
+  return '尚未作答'
+})
+
+const saveStatusType = computed(() => {
+  if (saveStatus.value === 'error') return 'error'
+  if (saveStatus.value === 'saving') return 'warning'
+  if (saveStatus.value === 'saved') return 'success'
+  return 'default'
+})
+
+function scrollToQuestion(qid: number) {
+  document.getElementById(`q-${qid}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 function onVisibility() {
   if (document.visibilityState === 'hidden') tabSwitchCount.value += 1
 }
@@ -148,6 +189,13 @@ async function doSubmit() {
   if (submitted.value) return
   submitted.value = true
   try {
+    clearTimeout(saveTimer)
+    await flushPendingAnswers()
+    if (saveStatus.value === 'error') {
+      submitted.value = false
+      message.error('仍有答案保存失败，请网络恢复后再交卷')
+      return
+    }
     const res = await submitExam(recordId.value, tabSwitchCount.value)
     message.success(`已提交，得分 ${res.total_score}（客观题已自动阅卷）`)
     router.replace({ name: 'student-record-detail', params: { id: String(recordId.value) } })
@@ -160,7 +208,9 @@ async function doSubmit() {
 function confirmSubmit() {
   dialog.warning({
     title: '提交试卷',
-    content: '提交后不可修改，确定提交吗？',
+    content: unansweredCount.value > 0
+      ? `还有 ${unansweredCount.value} 题未作答。提交后不可修改，确定提交吗？`
+      : '所有题目均已作答。提交后不可修改，确定提交吗？',
     positiveText: '提交',
     negativeText: '再检查一下',
     onPositiveClick: () => {
@@ -199,9 +249,11 @@ onBeforeRouteLeave((_to, _from, next) => {
     return
   }
   dialog.warning({
-    title: '离开考试',
-    content: '答题进度已自动保存，但建议您完成后再离开页面。',
-    positiveText: '留在本页',
+    title: '暂离考试',
+    content: saveStatus.value === 'error'
+      ? '当前有答案保存失败，离开可能导致最近作答丢失。确定仍要离开吗？'
+      : '答题进度会自动保存，建议确认保存状态为“已保存”后再离开。',
+    positiveText: '继续答题',
     negativeText: '仍要离开',
     onNegativeClick: () => {
       allowLeave = true
@@ -222,18 +274,37 @@ onBeforeRouteLeave((_to, _from, next) => {
           <n-tag :type="remaining < 300 ? 'error' : 'info'" size="large">
             剩余 {{ formatRemain(remaining) }}
           </n-tag>
-          <span class="muted">切屏次数 {{ tabSwitchCount }}（将随试卷一同提交）</span>
+          <n-tag :type="saveStatusType">{{ saveStatusText }}</n-tag>
+          <span class="muted">已答 {{ answeredCount }} / {{ questions.length }}</span>
+          <span class="muted">切屏 {{ tabSwitchCount }} 次（切到其他窗口或最小化可能被记录，仅供监考参考）</span>
         </n-space>
         <n-space>
-          <n-button @click="router.back()">返回列表</n-button>
+          <n-button @click="router.back()">暂离考试</n-button>
           <n-button type="primary" @click="confirmSubmit">交卷</n-button>
         </n-space>
+      </n-space>
+      <n-space class="question-nav" size="small">
+        <n-button
+          v-for="q in questions"
+          :key="q.question_id"
+          size="tiny"
+          :type="isAnswered(q) ? 'primary' : 'default'"
+          secondary
+          @click="scrollToQuestion(q.question_id)"
+        >
+          {{ q.sort_order }}
+        </n-button>
       </n-space>
     </n-card>
 
     <n-spin :show="loading">
       <n-space vertical size="large">
-        <n-card v-for="q in questions" :key="q.question_id" :title="`${q.sort_order}. [${typeLabel(q.type)}] (${q.score} 分)`">
+        <n-card
+          v-for="q in questions"
+          :id="`q-${q.question_id}`"
+          :key="q.question_id"
+          :title="`${q.sort_order}. [${typeLabel(q.type)}] (${q.score} 分)`"
+        >
           <div class="stem">{{ q.content }}</div>
 
           <template v-if="q.type === 1">
@@ -305,5 +376,10 @@ onBeforeRouteLeave((_to, _from, next) => {
 .muted {
   font-size: 13px;
   color: #64748b;
+}
+.question-nav {
+  margin-top: 12px;
+  max-height: 88px;
+  overflow: auto;
 }
 </style>

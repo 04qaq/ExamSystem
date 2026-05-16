@@ -38,7 +38,7 @@ const menuOptions = computed<MenuOption[]>(() => {
         h(
           RouterLink,
           { to: { name: 'settings' } },
-          { default: () => '连接与服务端' }
+          { default: () => '网络设置' }
         ),
       key: 'settings',
       icon: renderIcon('⚙'),
@@ -138,7 +138,7 @@ function logout() {
 
 const titleMap: Record<string, string> = {
   home: '首页',
-  settings: '连接与服务端',
+  settings: '网络设置',
   'student-papers': '可考试卷',
   'student-exam': '考试中',
   'student-records': '我的成绩',

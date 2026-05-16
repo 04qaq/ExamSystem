@@ -13,7 +13,6 @@ function bootstrap() {
   app.use(router)
   app.use(naive)
   app.mount('#app')
-  // 自动发现可能扫描较多 IP，若在 mount 之前 await，他人电脑上会像「长时间白屏」甚至误以为程序坏了
   const settings = useSettingsStore()
   void settings.ensureDiscoveredOnStartup()
 }

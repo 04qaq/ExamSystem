@@ -1,0 +1,57 @@
+@startuml 在线考试系统_架构
+!theme plain
+title 在线考试系统 — 逻辑与部署架构（testsystystem）
+
+skinparam shadowing false
+skinparam defaultFontName "Microsoft YaHei UI", "PingFang SC", sans-serif
+left to right direction
+
+actor "用户\n(教师 / 学生 / 管理员)" as user
+
+node "客户端 exam-client" as client {
+  rectangle "桌面壳 Wails v3 + WebView2" as wails {
+    component "Vue 3 SPA\n(Vite / Pinia / Router)" as spa
+    component "Axios\n(baseURL = 设置中的服务地址)" as axios
+    component "GET /discover\n(桌面内置中间件)" as discover_http
+    component "lanfind\n(UDP/TCP 探测)" as lanfind
+    spa -down-> axios
+    spa -down-> discover_http
+    discover_http -down-> lanfind
+  }
+}
+
+node "服务端 exam-server (Go)" as server {
+  rectangle "HTTP API (Gin)\n端口见 config.yaml" as gin {
+    component "中间件\nCORS / JWT / 角色" as mw
+    component "Controller\nAuth / Question / Paper\nExam / Grade / Admin" as ctrl
+    mw -down-> ctrl
+  }
+  component "Service 层" as svc
+  component "Repository 层\n(GORM)" as repo
+  component "答题缓存\nanswer_cache\n(可配置刷盘)" as cache
+  component "局域网服务发现\ndiscovery\nUDP+TCP :43210" as discovery
+  ctrl -down-> svc
+  svc -down-> repo
+  svc -down-> cache
+}
+
+database "MySQL\n(用户、题库、试卷、考试记录、操作日志等)" as mysql
+
+user --> wails : 使用桌面应用
+axios --> gin : HTTPS 或 HTTP\nJSON + Bearer Token
+lanfind ..> discovery : 广播/探测\n(得到 exam-server 基址后\n写入前端设置)
+
+repo --> mysql
+
+note bottom of client
+  发现路径：前端 fetch 同源 /discover，由 Wails 资源服务转发给 Go 的 lanfind，
+  减轻 WebView2 对本地环回端口的限制。
+  业务路径：Axios 请求发往用户配置或自动发现得到的 exam-server 根地址。
+end note
+
+note bottom of server
+  启动流程：加载 config.yaml，连接 MySQL 并迁移，
+  初始化答题缓存与种子管理员，启动 UDP/TCP 发现，再监听 HTTP 路由。
+end note
+
+@enduml

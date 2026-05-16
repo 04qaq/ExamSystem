@@ -78,12 +78,12 @@ async function onRegister() {
   <div class="login-page">
     <n-card class="login-card" title="在线考试系统" size="large">
       <p class="hint">
-        <template v-if="discovering">正在自动查找本机或局域网内的 exam-server…</template>
+        <template v-if="discovering">正在确认考试服务连接…</template>
         <template v-else>
-          当前 API 地址：<strong>{{ settings.effectiveBaseUrl }}</strong>
+          客户端默认连接管理员配置的考试服务。
           <span class="sub-hint">
-            默认会自动探测同一台电脑、局域网或 Wi‑Fi 下的服务端；也可
-            <router-link class="link" to="/setup">手动指定</router-link>
+            若无法登录，请
+            <router-link class="link" to="/setup">检查网络设置</router-link>
             。
           </span>
         </template>
@@ -138,7 +138,7 @@ async function onRegister() {
       </n-tabs>
       <template #footer>
         <n-space justify="center">
-          <span class="muted">exam-server 需与本客户端网络互通；防火墙请放行 HTTP 端口（默认 8080）。</span>
+          <span class="muted">当前服务：{{ settings.effectiveBaseUrl }}</span>
         </n-space>
       </template>
     </n-card>

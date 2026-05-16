@@ -11,7 +11,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// 由 scripts/sync-frontend.ps1 将 ../frontend/dist 同步到此目录后再执行 wails3 build / go build。
+// 由 scripts/sync-frontend.ps1 同步 ../frontend/dist 后再构建。
+// Windows 发布建议附带：-ldflags="-s -w -H windowsgui"（无控制台窗口）。
 //
 //go:embed all:embed/dist
 var assets embed.FS
@@ -19,16 +20,16 @@ var assets embed.FS
 func main() {
 	app := application.New(application.Options{
 		Name:        "在线考试系统",
-		Description: "在线考试系统桌面客户端（嵌入 Vue 前端，API 连接独立 exam-server）",
+		Description: "在线考试系统桌面客户端",
 		Windows: application.WindowsOptions{
-			// 减轻 WebView2 对「页面请求回环地址」的限制，便于 axios/fetch 访问本机 exam-server
+			// 减轻 WebView2 对页面访问本机地址的限制，便于客户端连接本机考试服务
 			AdditionalBrowserArgs: []string{
 				"--disable-features=BlockInsecurePrivateNetworkRequests",
 			},
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
-			// 与页面同源提供 /discover，避免 WebView2 拦截对 127.0.0.1 随机端口的访问（本地环回限制）
+			// 与页面同源提供 /discover，避免 WebView2 拦截本地发现请求
 			Middleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path != "/discover" {
@@ -46,14 +47,8 @@ func main() {
 					w.Header().Set("Content-Type", "application/json; charset=utf-8")
 					u, err := lanfind.Discover(r.Context())
 					if err != nil {
-						log.Printf("[discover] %v", err)
 						http.Error(w, err.Error(), http.StatusInternalServerError)
 						return
-					}
-					if u == "" {
-						log.Printf("[discover] finished: no exam-server found (UDP/TCP/HTTP sweep)")
-					} else {
-						log.Printf("[discover] ok url=%q", u)
 					}
 					_ = json.NewEncoder(w).Encode(map[string]string{"url": u})
 				})

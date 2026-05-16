@@ -12,7 +12,8 @@ tasks:
     summary: 构建 Windows 可执行文件（需已同步 embed/dist）
     cmds:
       - powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '{{.BIN_DIR}}' | Out-Null"
-      - go build -buildvcs=false -o {{.BIN_DIR}}/{{.APP_NAME}}.exe .
+      # -H windowsgui：发布版不弹出控制台窗口；-s -w 减小体积
+      - go build -buildvcs=false -ldflags="-s -w -H windowsgui" -o {{.BIN_DIR}}/{{.APP_NAME}}.exe .
     env:
       GOOS: windows
       CGO_ENABLED: '0'
